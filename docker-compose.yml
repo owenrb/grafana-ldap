@@ -1,0 +1,98 @@
+services:
+  # OpenLDAP Server
+  openldap:
+    image: osixia/openldap:latest
+    container_name: openldap
+    command: ["--copy-service"]
+    environment:
+      # MUST match the DN in your LDIF (dc=mycompany,dc=com)
+      LDAP_ORGANISATION: "mycompany"
+      LDAP_DOMAIN: "mycompany.com" 
+      LDAP_ADMIN_PASSWORD: "adminpassword"
+    volumes:
+      # Mount your local file to the bootstrap directory
+      - ./users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/users.ldif
+    networks:
+      - auth-network
+    ports:
+      - "389:389"
+
+  # phpLDAPadmin - Web UI for LDAP
+  phpldapadmin:
+    image: osixia/phpldapadmin:latest
+    container_name: phpldapadmin
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: "openldap"
+      PHPLDAPADMIN_HTTPS: "false"
+    networks:
+      - auth-network
+    ports:
+      - "8081:80"
+    depends_on:
+      - openldap
+
+  # Keycloak - Identity and Access Management
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: keycloak
+    # Add --import-realm to the startup command
+    command: start-dev --import-realm
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: password
+      KC_HTTP_ENABLED: "true"
+      KC_HOSTNAME_STRICT: "false"
+    volumes:
+      # Mount the export file to the import directory
+      - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
+    networks:
+      - auth-network
+    ports:
+      - "8080:8080"
+    depends_on:
+      - openldap
+
+  # Grafana - Visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    networks:
+      - auth-network
+    environment:
+      # 1. Basic Server Settings
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      
+      # 2. Enable OAuth
+      - GF_AUTH_GENERIC_OAUTH_ENABLED=true
+      - GF_AUTH_GENERIC_OAUTH_NAME=Keycloak
+      - GF_AUTH_GENERIC_OAUTH_ALLOW_SIGN_UP=true
+      
+      # 3. Client Credentials (Matches realm-export.json)
+      - GF_AUTH_GENERIC_OAUTH_CLIENT_ID=grafana
+      - GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET=grafana-secret-value
+      - GF_AUTH_GENERIC_OAUTH_SCOPES=openid profile email
+      
+      # 4. Critical URL Configuration
+      # The browser uses this (External URL)
+      - GF_AUTH_GENERIC_OAUTH_AUTH_URL=http://localhost:8080/realms/mycompany/protocol/openid-connect/auth
+      # The container uses these (Internal Docker Network URL)
+      - GF_AUTH_GENERIC_OAUTH_TOKEN_URL=http://keycloak:8080/realms/mycompany/protocol/openid-connect/token
+      - GF_AUTH_GENERIC_OAUTH_API_URL=http://keycloak:8080/realms/mycompany/protocol/openid-connect/userinfo
+      
+      # 5. Role Mapping (The "Magic")
+      # This JMESPath maps LDAP groups to Grafana roles
+      # SG_ADMIN -> Admin, SG_EDITOR -> Editor, Everyone else -> Viewer
+      - GF_AUTH_GENERIC_OAUTH_ROLE_ATTRIBUTE_PATH=contains(groups[*], 'SG_ADMIN') && 'Admin' || contains(groups[*], 'SG_EDITOR') && 'Editor' || 'Viewer'
+      
+      # This redirects the browser to Keycloak's logout endpoint, 
+      # then Keycloak redirects back to Grafana's login page.
+      - GF_AUTH_GENERIC_OAUTH_SIGNOUT_REDIRECT_URL=http://localhost:8080/realms/mycompany/protocol/openid-connect/logout?post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Flogin
+    depends_on:
+      - keycloak
+
+networks:
+  auth-network:
+    driver: bridge

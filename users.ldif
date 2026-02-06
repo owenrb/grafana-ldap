@@ -1,0 +1,42 @@
+# 1. Create the Groups Organizational Unit
+dn: ou=groups,dc=mycompany,dc=com
+objectClass: organizationalUnit
+ou: groups
+
+# 2. Define Users (Same as before)
+dn: cn=jdoe,dc=mycompany,dc=com
+objectClass: inetOrgPerson
+cn: jdoe
+sn: Doe
+givenName: John
+mail: jdoe@mycompany.com
+userPassword: password
+
+dn: cn=jsmith,dc=mycompany,dc=com
+objectClass: inetOrgPerson
+cn: jsmith
+sn: Smith
+givenName: Jane
+mail: jsmith@mycompany.com
+userPassword: password
+
+dn: cn=jtamad,dc=mycompany,dc=com
+objectClass: inetOrgPerson
+cn: jtamad
+sn: Tamad
+givenName: Juan
+mail: jtamad@mycompany.com
+userPassword: password
+
+# 3. Define Security Groups
+# SG_ADMIN (Member: jdoe)
+dn: cn=SG_ADMIN,ou=groups,dc=mycompany,dc=com
+objectClass: groupOfUniqueNames
+cn: SG_ADMIN
+uniqueMember: cn=jdoe,dc=mycompany,dc=com
+
+# SG_EDITOR (Member: jsmith)
+dn: cn=SG_EDITOR,ou=groups,dc=mycompany,dc=com
+objectClass: groupOfUniqueNames
+cn: SG_EDITOR
+uniqueMember: cn=jsmith,dc=mycompany,dc=com
