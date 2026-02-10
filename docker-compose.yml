@@ -1,4 +1,5 @@
 services:
+
   # OpenLDAP Server
   openldap:
     image: osixia/openldap:latest
@@ -13,10 +14,10 @@ services:
       # Mount your local file to the bootstrap directory
       - ./users.ldif:/container/service/slapd/assets/config/bootstrap/ldif/custom/users.ldif
     networks:
-      - auth-network
+      - monitoring
     ports:
       - "389:389"
-
+    
   # phpLDAPadmin - Web UI for LDAP
   phpldapadmin:
     image: osixia/phpldapadmin:latest
@@ -25,12 +26,26 @@ services:
       PHPLDAPADMIN_LDAP_HOSTS: "openldap"
       PHPLDAPADMIN_HTTPS: "false"
     networks:
-      - auth-network
+      - monitoring
     ports:
       - "8081:80"
     depends_on:
       - openldap
 
+  # The Nginx Gateway (Ingress Controller)
+  nginx:
+    image: nginx:1.21.6  # Use the base Nginx image instead of the Ingress Controller
+    ports:
+      - "3100:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./.htpasswd:/etc/nginx/.htpasswd:ro
+    networks:
+      - monitoring
+    depends_on:
+      - grafana
+
+  
   # Keycloak - Identity and Access Management
   keycloak:
     image: quay.io/keycloak/keycloak:latest
@@ -46,24 +61,37 @@ services:
       # Mount the export file to the import directory
       - ./realm-export.json:/opt/keycloak/data/import/realm-export.json
     networks:
-      - auth-network
+      - monitoring
     ports:
       - "8080:8080"
     depends_on:
       - openldap
 
-  # Grafana - Visualization
+  loki:
+    image: grafana/loki:2.9.10
+    command: -config.file=/etc/loki/local-config.yaml
+    networks:
+      - monitoring
+
+  promtail:
+    image: grafana/promtail:2.9.10
+    volumes:
+      - /var/log:/var/log
+      - ./promtail-config.yml:/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/config.yml
+    networks:
+      - monitoring
+    depends_on:
+      - loki
+
   grafana:
-    image: grafana/grafana:latest
-    container_name: grafana
+    image: grafana/grafana:11.1.4
     ports:
       - "3000:3000"
-    networks:
-      - auth-network
     environment:
       # 1. Basic Server Settings
       - GF_SERVER_ROOT_URL=http://localhost:3000
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
       
       # 2. Enable OAuth
       - GF_AUTH_GENERIC_OAUTH_ENABLED=true
@@ -90,9 +118,12 @@ services:
       # This redirects the browser to Keycloak's logout endpoint, 
       # then Keycloak redirects back to Grafana's login page.
       - GF_AUTH_GENERIC_OAUTH_SIGNOUT_REDIRECT_URL=http://localhost:8080/realms/mycompany/protocol/openid-connect/logout?post_logout_redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Flogin
+    networks:
+      - monitoring
     depends_on:
       - keycloak
+      - loki
 
 networks:
-  auth-network:
+  monitoring:
     driver: bridge
