@@ -1,0 +1,5 @@
+clients:
+  - url: http://nginx:80/loki/api/v1/push
+    basic_auth:
+      username: admin
+      password: yourpassword
