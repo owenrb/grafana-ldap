@@ -9,15 +9,21 @@ It showcases how to:
 2.  Configure **Keycloak** to use OpenLDAP as a User Federation provider (via realm import).
 3.  Configure **Grafana** to use Keycloak as an OAuth2 / OpenID Connect provider.
 4.  Map LDAP groups to Grafana roles (Admin, Editor, Viewer) using JMESPath.
+5.  Use **Nginx** as ingress controller
+6.  Add **Loki** as log aggregator server and as datasource in Grafana
+7.  Ship logs in Loki via **Promtail** agent 
 
 ## Services
 
 | Service | URL | Credentials (User/Pass) | Description |
 |---------|-----|-------------------------|-------------|
-| **Grafana** | `http://localhost:3000` | `admin` / `admin` (or Login via Keycloak) | Visualization platform. |
+| **Grafana** | `http://localhost:3000` | Login via Keycloak | Visualization platform. |
 | **Keycloak** | `http://localhost:8080` | `admin` / `password` | Identity and Access Management. |
 | **phpLDAPadmin** | `http://localhost:8081` | DN: `cn=admin,dc=mycompany,dc=com` / `adminpassword` | Web UI for OpenLDAP. |
 | **OpenLDAP** | `localhost:389` | N/A | LDAP Directory Service. |
+| **Nginx** | `http://localhost:3000` | Login via Keycloak | Ingress controller |
+| **Loki** | `http://localhost:3100` | As defined in .htpasswd file | Log aggregator |
+| **Promtail** | N/A | As defined in .htpasswd file | Loki log agent |
 
 ## Getting Started
 
